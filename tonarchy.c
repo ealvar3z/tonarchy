@@ -11,11 +11,11 @@ enum Install_Option {
     OXIDIZED = 2
 };
 
-static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep ttf-iosevka-nerd";
+static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xrandr xorg-xset xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep ttf-iosevka-nerd ttf-jetbrains-mono-nerd";
 
-static const char *SUCKLESS_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr libx11 libxft libxinerama firefox picom xclip xwallpaper ttf-jetbrains-mono-nerd slock maim rofi alsa-utils pulseaudio pulseaudio-alsa pavucontrol";
+static const char *SUCKLESS_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft libxinerama firefox picom xclip xwallpaper ttf-jetbrains-mono-nerd ttf-iosevka-nerd slock maim rofi alsa-utils pulseaudio pulseaudio-alsa pavucontrol";
 
-static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr libx11 libxft freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog cargo ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep";
+static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog cargo ttf-iosevka-nerd ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep";
 
 void logger_init(const char *log_path) {
     log_file = fopen(log_path, "a");
@@ -1243,6 +1243,21 @@ static int configure_oxwm(const char *username) {
 
     LOG_INFO("Starting OXWM installation for user: %s", username);
 
+    char st_path[256];
+    snprintf(st_path, sizeof(st_path), "/home/%s/st", username);
+
+    if (!git_clone_as_user(username, "https://github.com/tonybanters/st", st_path)) {
+        LOG_ERROR("Failed to clone st");
+        show_message("Failed to clone st");
+        return 0;
+    }
+
+    if (!make_clean_install(st_path)) {
+        LOG_ERROR("Failed to build st");
+        show_message("Failed to build st");
+        return 0;
+    }
+
     char oxwm_path[256];
     snprintf(oxwm_path, sizeof(oxwm_path), "/home/%s/oxwm", username);
 
@@ -1278,7 +1293,7 @@ static int configure_oxwm(const char *username) {
     system(cmd);
 
     Dotfile dotfiles[] = {
-        { ".xinitrc", "xwallpaper --zoom /usr/share/wallpapers/wall1.jpg &\nexec oxwm\n", 0755 },
+        { ".xinitrc", "xset r rate 200 35 &\npicom &\nxwallpaper --zoom /usr/share/wallpapers/wall1.jpg &\nexec oxwm\n", 0755 },
         { ".bash_profile", BASH_PROFILE_CONTENT, 0644 },
         { ".bashrc", BASHRC_CONTENT, 0644 }
     };
