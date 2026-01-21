@@ -1010,17 +1010,8 @@ static int install_bootloader(const char *disk) {
     return 1;
 }
 
-static int configure_xfce(const char *username) {
+static int setup_common_configs(const char *username) {
     char cmd[4096];
-    int rows, cols;
-    get_terminal_size(&rows, &cols);
-
-    clear_screen();
-    draw_logo(cols);
-
-    int logo_start = (cols - 70) / 2;
-    printf("\033[%d;%dH\033[37mConfiguring XFCE...\033[0m", 10, logo_start);
-    fflush(stdout);
 
     create_directory("/mnt/usr/share/wallpapers", 0755);
     system("cp /usr/share/wallpapers/wall1.jpg /mnt/usr/share/wallpapers/wall1.jpg");
@@ -1041,11 +1032,8 @@ static int configure_xfce(const char *username) {
     create_directory("/mnt/usr/lib/firefox/distribution", 0755);
     system("cp /usr/share/tonarchy/firefox-policies/policies.json /mnt/usr/lib/firefox/distribution/");
 
-    snprintf(cmd, sizeof(cmd), "/mnt/usr/share/applications");
-    create_directory(cmd, 0755);
-
-    snprintf(cmd, sizeof(cmd), "/mnt/usr/share/applications/firefox.desktop");
-    write_file(cmd,
+    create_directory("/mnt/usr/share/applications", 0755);
+    write_file("/mnt/usr/share/applications/firefox.desktop",
         "[Desktop Entry]\n"
         "Name=Firefox\n"
         "GenericName=Web Browser\n"
@@ -1059,9 +1047,6 @@ static int configure_xfce(const char *username) {
     snprintf(cmd, sizeof(cmd), "/mnt/home/%s/.config", username);
     create_directory(cmd, 0755);
 
-    snprintf(cmd, sizeof(cmd), "cp -r /usr/share/tonarchy/xfce4 /mnt/home/%s/.config/xfce4", username);
-    system(cmd);
-
     snprintf(cmd, sizeof(cmd), "cp -r /usr/share/tonarchy/alacritty /mnt/home/%s/.config/alacritty", username);
     system(cmd);
 
@@ -1071,54 +1056,19 @@ static int configure_xfce(const char *username) {
     snprintf(cmd, sizeof(cmd), "cp -r /usr/share/tonarchy/fastfetch /mnt/home/%s/.config/fastfetch", username);
     system(cmd);
 
-    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.config", username, username, username);
-    system(cmd);
-
     char nvim_path[256];
     snprintf(nvim_path, sizeof(nvim_path), "/home/%s/.config/nvim", username);
     git_clone_as_user(username, "https://github.com/tonybanters/nvim", nvim_path);
     snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.config/nvim", username, username, username);
     system(cmd);
 
-    Dotfile dotfiles[] = {
-        {
-            ".xinitrc",
-            "exec startxfce4\n",
-            0755
-        },
-        {
-            ".bash_profile",
-            "if [ -z $DISPLAY ] && [ $XDG_VTNR = 1 ]; then\n"
-            "  exec startx\n"
-            "fi\n",
-            0644
-        },
-        {
-            ".bashrc",
-            "export PATH=\"$HOME/.local/bin:$PATH\"\n"
-            "export EDITOR=\"nvim\"\n"
-            "\n"
-            "alias ls='ls --color=auto'\n"
-            "alias la='ls -a'\n"
-            "alias ll='ls -la'\n"
-            "alias ..='cd ..'\n"
-            "alias ...='cd ../..'\n"
-            "alias grep='grep --color=auto'\n"
-            "\n"
-            "export PS1=\"\\[\\e[38;5;75m\\]\\u@\\h \\[\\e[38;5;113m\\]\\w \\[\\e[38;5;189m\\]\\$ \\[\\e[0m\\]\"\n"
-            "\n"
-            "fastfetch\n",
-            0644
-        }
-    };
+    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.config", username, username, username);
+    system(cmd);
 
-    for (size_t i = 0; i < sizeof(dotfiles) / sizeof(dotfiles[0]); i++) {
-        if (!create_user_dotfile(username, &dotfiles[i])) {
-            LOG_ERROR("Failed to create dotfile: %s", dotfiles[i].filename);
-            return 0;
-        }
-    }
+    return 1;
+}
 
+static int setup_autologin(const char *username) {
     char autologin_exec[512];
     snprintf(autologin_exec, sizeof(autologin_exec),
              "ExecStart=-/sbin/agetty -o \"-p -f -- \\\\u\" --noclear --autologin %s %%I $TERM",
@@ -1140,6 +1090,66 @@ static int configure_xfce(const char *username) {
 
     if (!setup_systemd_override(&autologin)) {
         LOG_ERROR("Failed to setup autologin");
+        return 0;
+    }
+
+    return 1;
+}
+
+static const char *BASHRC_CONTENT =
+    "export PATH=\"$HOME/.local/bin:$PATH\"\n"
+    "export EDITOR=\"nvim\"\n"
+    "\n"
+    "alias ls='ls --color=auto'\n"
+    "alias la='ls -a'\n"
+    "alias ll='ls -la'\n"
+    "alias ..='cd ..'\n"
+    "alias ...='cd ../..'\n"
+    "alias grep='grep --color=auto'\n"
+    "\n"
+    "export PS1=\"\\[\\e[38;5;75m\\]\\u@\\h \\[\\e[38;5;113m\\]\\w \\[\\e[38;5;189m\\]\\$ \\[\\e[0m\\]\"\n"
+    "\n"
+    "fastfetch\n";
+
+static const char *BASH_PROFILE_CONTENT =
+    "if [ -z $DISPLAY ] && [ $XDG_VTNR = 1 ]; then\n"
+    "  exec startx\n"
+    "fi\n";
+
+static int configure_xfce(const char *username) {
+    char cmd[4096];
+    int rows, cols;
+    get_terminal_size(&rows, &cols);
+
+    clear_screen();
+    draw_logo(cols);
+
+    int logo_start = (cols - 70) / 2;
+    printf("\033[%d;%dH\033[37mConfiguring XFCE...\033[0m", 10, logo_start);
+    fflush(stdout);
+
+    setup_common_configs(username);
+
+    snprintf(cmd, sizeof(cmd), "cp -r /usr/share/tonarchy/xfce4 /mnt/home/%s/.config/xfce4", username);
+    system(cmd);
+
+    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.config/xfce4", username, username, username);
+    system(cmd);
+
+    Dotfile dotfiles[] = {
+        { ".xinitrc", "exec startxfce4\n", 0755 },
+        { ".bash_profile", BASH_PROFILE_CONTENT, 0644 },
+        { ".bashrc", BASHRC_CONTENT, 0644 }
+    };
+
+    for (size_t i = 0; i < sizeof(dotfiles) / sizeof(dotfiles[0]); i++) {
+        if (!create_user_dotfile(username, &dotfiles[i])) {
+            LOG_ERROR("Failed to create dotfile: %s", dotfiles[i].filename);
+            return 0;
+        }
+    }
+
+    if (!setup_autologin(username)) {
         return 0;
     }
 
@@ -1196,19 +1206,8 @@ static int install_suckless_tools(const char *username) {
     system("cp /usr/share/wallpapers/wall1.jpg /mnt/usr/share/wallpapers/wall1.jpg");
 
     Dotfile dotfiles[] = {
-        {
-            ".xinitrc",
-            "xwallpaper --zoom /usr/share/wallpapers/wall1.jpg &\n"
-            "exec dwm\n",
-            0755
-        },
-        {
-            ".bash_profile",
-            "if [ -z $DISPLAY ] && [ $XDG_VTNR = 1 ]; then\n"
-            "  exec startx\n"
-            "fi\n",
-            0644
-        }
+        { ".xinitrc", "xwallpaper --zoom /usr/share/wallpapers/wall1.jpg &\nexec dwm\n", 0755 },
+        { ".bash_profile", BASH_PROFILE_CONTENT, 0644 }
     };
 
     for (size_t i = 0; i < sizeof(dotfiles) / sizeof(dotfiles[0]); i++) {
@@ -1219,34 +1218,84 @@ static int install_suckless_tools(const char *username) {
         }
     }
 
-    char autologin_exec[512];
-    snprintf(
-        autologin_exec,
-        sizeof(autologin_exec
-    ), "ExecStart=-/sbin/agetty -o \"-p -f -- \\\\u\" --noclear --autologin %s %%I $TERM", username);
-
-    Config_Entry autologin_entries[] = {
-        {"[Service]", ""},
-        {"ExecStart=", ""},
-        {autologin_exec, ""}
-    };
-
-    Systemd_Override autologin = {
-        "getty@tty1.service",
-        "getty@tty1.service.d",
-        "autologin.conf",
-        autologin_entries,
-        3
-    };
-
-    if (!setup_systemd_override(&autologin)) {
-        LOG_ERROR("Failed to setup autologin");
+    if (!setup_autologin(username)) {
         show_message("Failed to setup autologin");
         return 0;
     }
 
     LOG_INFO("Suckless tools installation completed successfully");
     show_message("Suckless tools installed successfully!");
+    return 1;
+}
+
+static int configure_oxwm(const char *username) {
+    char cmd[4096];
+    int rows, cols;
+    get_terminal_size(&rows, &cols);
+
+    clear_screen();
+    draw_logo(cols);
+
+    int logo_start = (cols - 70) / 2;
+    printf("\033[%d;%dH\033[37mConfiguring OXWM...\033[0m", 10, logo_start);
+    printf("\033[%d;%dH\033[37mCloning and building from source...\033[0m", 11, logo_start);
+    fflush(stdout);
+
+    LOG_INFO("Starting OXWM installation for user: %s", username);
+
+    char oxwm_path[256];
+    snprintf(oxwm_path, sizeof(oxwm_path), "/home/%s/oxwm", username);
+
+    if (!git_clone_as_user(username, "https://github.com/tonybanters/oxwm", oxwm_path)) {
+        LOG_ERROR("Failed to clone oxwm");
+        show_message("Failed to clone OXWM");
+        return 0;
+    }
+
+    if (!chroot_exec_fmt("cd %s && cargo build --release", oxwm_path)) {
+        LOG_ERROR("Failed to build oxwm");
+        show_message("Failed to build OXWM");
+        return 0;
+    }
+
+    if (!chroot_exec_fmt("cp %s/target/release/oxwm /usr/bin/oxwm", oxwm_path)) {
+        LOG_ERROR("Failed to install oxwm binary");
+        show_message("Failed to install OXWM");
+        return 0;
+    }
+
+    chroot_exec("chmod 755 /usr/bin/oxwm");
+
+    setup_common_configs(username);
+
+    snprintf(cmd, sizeof(cmd), "/mnt/home/%s/.config/oxwm", username);
+    create_directory(cmd, 0755);
+
+    snprintf(cmd, sizeof(cmd), "cp /mnt%s/templates/tonarchy-config.lua /mnt/home/%s/.config/oxwm/config.lua", oxwm_path, username);
+    system(cmd);
+
+    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.config/oxwm", username, username, username);
+    system(cmd);
+
+    Dotfile dotfiles[] = {
+        { ".xinitrc", "xwallpaper --zoom /usr/share/wallpapers/wall1.jpg &\nexec oxwm\n", 0755 },
+        { ".bash_profile", BASH_PROFILE_CONTENT, 0644 },
+        { ".bashrc", BASHRC_CONTENT, 0644 }
+    };
+
+    for (size_t i = 0; i < sizeof(dotfiles) / sizeof(dotfiles[0]); i++) {
+        if (!create_user_dotfile(username, &dotfiles[i])) {
+            LOG_ERROR("Failed to create dotfile: %s", dotfiles[i].filename);
+            return 0;
+        }
+    }
+
+    if (!setup_autologin(username)) {
+        return 0;
+    }
+
+    LOG_INFO("OXWM installation completed successfully");
+    show_message("OXWM installed successfully!");
     return 1;
 }
 
@@ -1303,22 +1352,11 @@ int main(void) {
         CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
         install_suckless_tools(username);
     } else {
-        clear_screen();
-        int rows, cols;
-        get_terminal_size(&rows, &cols);
-        draw_logo(cols);
-
-        int logo_start = (cols - 70) / 2;
-        printf("\033[%d;%dH\033[1;33mOXWM mode coming soon!\033[0m", 10, logo_start);
-        printf("\033[%d;%dH\033[37mPress any key to exit...\033[0m", 12, logo_start);
-        fflush(stdout);
-
-        enable_raw_mode();
-        char c;
-        read(STDIN_FILENO, &c, 1);
-        disable_raw_mode();
-        logger_close();
-        return 0;
+        CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
+        CHECK_OR_FAIL(install_packages_impl(OXWM_PACKAGES), "Failed to install packages");
+        CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
+        CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
+        configure_oxwm(username);
     }
 
     system("cp /tmp/tonarchy-install.log /mnt/var/log/tonarchy-install.log");
