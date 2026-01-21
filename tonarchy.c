@@ -11,7 +11,7 @@ enum Install_Option {
     OXIDIZED = 2
 };
 
-static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ttf-iosevka-nerd";
+static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep ttf-iosevka-nerd";
 
 static const char *SUCKLESS_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr libx11 libxft libxinerama firefox picom xclip xwallpaper ttf-jetbrains-mono-nerd slock maim rofi alsa-utils pulseaudio pulseaudio-alsa pavucontrol";
 
@@ -1021,15 +1021,23 @@ static int configure_xfce(const char *username) {
     create_directory("/mnt/usr/share/tonarchy", 0755);
     system("cp /usr/share/tonarchy/favicon.png /mnt/usr/share/tonarchy/favicon.png");
 
-    snprintf(cmd, sizeof(cmd), "/mnt/home/%s/.mozilla/firefox/default", username);
-    create_directory(cmd, 0755);
-    snprintf(cmd, sizeof(cmd), "cp -r /usr/share/tonarchy/firefox/profile/* /mnt/home/%s/.mozilla/firefox/default/", username);
+    LOG_INFO("Creating Firefox profile with -CreateProfile");
+    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt sudo -u %s firefox -CreateProfile default-release 2>> /tmp/tonarchy-install.log", username);
+    if (system(cmd) != 0) {
+        LOG_WARN("Failed to create Firefox profile, trying fallback method");
+    }
+
+    LOG_INFO("Copying user.js, extensions, and theme to Firefox profile");
+    snprintf(cmd, sizeof(cmd),
+        "PROFILE_DIR=$(arch-chroot /mnt find /home/%s/.config/mozilla/firefox -maxdepth 1 -name '*.default-release' -type d | head -1) && "
+        "if [ -n \"$PROFILE_DIR\" ]; then "
+        "cp -r /usr/share/tonarchy/firefox/default-release/* \"$PROFILE_DIR/\" && "
+        "echo \"Copied Firefox profile files to $PROFILE_DIR\" >> /tmp/tonarchy-install.log; "
+        "fi",
+        username);
     system(cmd);
-    snprintf(cmd, sizeof(cmd), "cp /usr/share/tonarchy/firefox/profiles.ini /mnt/home/%s/.mozilla/firefox/", username);
-    system(cmd);
-    snprintf(cmd, sizeof(cmd), "cp /usr/share/tonarchy/firefox/installs.ini /mnt/home/%s/.mozilla/firefox/", username);
-    system(cmd);
-    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.mozilla", username, username, username);
+
+    snprintf(cmd, sizeof(cmd), "arch-chroot /mnt chown -R %s:%s /home/%s/.config/mozilla", username, username, username);
     system(cmd);
 
     create_directory("/mnt/usr/lib/firefox/distribution", 0755);
@@ -1084,7 +1092,9 @@ static int configure_xfce(const char *username) {
             "alias ...='cd ../..'\n"
             "alias grep='grep --color=auto'\n"
             "\n"
-            "export PS1=\"\\[\\e[38;5;75m\\]\\u@\\h \\[\\e[38;5;113m\\]\\w \\[\\e[38;5;189m\\]\\$ \\[\\e[0m\\]\"\n",
+            "export PS1=\"\\[\\e[38;5;75m\\]\\u@\\h \\[\\e[38;5;113m\\]\\w \\[\\e[38;5;189m\\]\\$ \\[\\e[0m\\]\"\n"
+            "\n"
+            "fastfetch\n",
             0644
         }
     };

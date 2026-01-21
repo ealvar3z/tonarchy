@@ -32,7 +32,11 @@
                 "host": "blue"
             }
         },
-        "os",
+        {
+            "type": "os",
+            "key": "OS", 
+            "format": "Tonarchy"
+        },
         "kernel",
         "memory",
         "packages",
