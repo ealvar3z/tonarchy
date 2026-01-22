@@ -172,18 +172,19 @@ int prepare_airootfs(const char *iso_profile, const char *tonarchy_src) {
         return 0;
     }
 
-    snprintf(src_path, sizeof(src_path), "%s/assets/firefox", tonarchy_src);
+    snprintf(src_path, sizeof(src_path), "%s/assets", tonarchy_src);
     snprintf(dest_path, sizeof(dest_path), "%s/airootfs/usr/share/tonarchy", iso_profile);
-    snprintf(cmd, sizeof(cmd), "cp -r '%s' '%s'", src_path, dest_path);
+    snprintf(cmd, sizeof(cmd), "cp -r '%s'/* '%s'", src_path, dest_path);
     if (!run_command(cmd)) {
         LOG_ERROR("Failed to copy tonarchy config files");
         return 0;
     }
 
-    snprintf(src_path, sizeof(src_path), "%s/assets/wallpapers", tonarchy_src);
     snprintf(dest_path, sizeof(dest_path), "%s/airootfs/usr/share/wallpapers", iso_profile);
-    snprintf(cmd, sizeof(cmd), "cp -r '%s' '%s' 2>/dev/null || true", src_path, dest_path);
-    run_command(cmd);
+    snprintf(cmd, sizeof(cmd), "cp -r '%s/wallpapers' '%s'", src_path, dest_path);
+    if (!run_command(cmd)) {
+        LOG_WARN("Failed to copy wallpapers");
+    }
 
     LOG_INFO("Setting proper ownership for airootfs...");
     snprintf(cmd, sizeof(cmd), "sudo chown -R root:root '%s/airootfs/usr'", iso_profile);
