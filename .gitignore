@@ -16,6 +16,7 @@ test-disk*
 
 result
 notes/
+build_iso
 
 out/
 iso/airootfs/usr/

@@ -8,13 +8,14 @@ SRC = src/tonarchy.c
 LATEST_ISO = $(shell ls -t out/*.iso 2>/dev/null | head -1)
 TEST_DISK = test-disk.qcow2
 
-.PHONY: all clean install static mkiso build-iso test test-disk clean-iso clean-vm
+.PHONY: all clean install static build build-container test test-nix test-disk clean-iso clean-vm
 
 all: $(TARGET)
 
 static: $(TARGET)-static
 
-mkiso: tonarchy-mkiso
+build_iso: src/build_iso.c src/build_iso.h
+	$(CC) $(CFLAGS) src/build_iso.c -o build_iso
 
 $(TARGET): $(SRC)
 	$(CC) $(CFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
@@ -22,14 +23,18 @@ $(TARGET): $(SRC)
 $(TARGET)-static: $(SRC)
 	$(CC) $(CFLAGS) $(SRC) -o $(TARGET)-static $(STATIC_LDFLAGS)
 
-tonarchy-mkiso: src/tonarchy-mkiso.c
-	$(CC) $(CFLAGS) src/tonarchy-mkiso.c -o tonarchy-mkiso
+build: build_iso
+	./build_iso --iso-profile ./iso --out-dir ./out
 
-build-iso: tonarchy-mkiso
-	./tonarchy-mkiso --iso-profile ./iso --out-dir ./out
+build-container: build_iso
+	./build_iso --iso-profile ./iso --out-dir ./out --container podman
+
+test-nix:
+	@if [ -z "$(LATEST_ISO)" ]; then echo "No ISO found. Run 'nix run .#build_iso -- --container podman' first"; exit 1; fi
+	./vm-test "$(LATEST_ISO)"
 
 test:
-	@if [ -z "$(LATEST_ISO)" ]; then echo "No ISO found. Run 'make build-iso' first"; exit 1; fi
+	@if [ -z "$(LATEST_ISO)" ]; then echo "No ISO found. Run 'make build' first"; exit 1; fi
 	@if [ ! -f "$(TEST_DISK)" ]; then \
 		echo "Creating test disk..."; \
 		qemu-img create -f qcow2 "$(TEST_DISK)" 20G; \
@@ -94,7 +99,7 @@ clean-iso:
 	sudo rm -rf /tmp/tonarchy_iso_work
 
 clean: clean-iso clean-vm
-	rm -f $(TARGET) $(TARGET)-static tonarchy-mkiso
+	rm -f $(TARGET) $(TARGET)-static build_iso
 
 install: $(TARGET)
 	install -Dm755 $(TARGET) /usr/local/bin/$(TARGET)
