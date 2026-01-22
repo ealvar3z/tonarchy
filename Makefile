@@ -4,13 +4,17 @@ LDFLAGS =
 STATIC_LDFLAGS = -static
 
 TARGET = tonarchy
-SRC = tonarchy.c
+SRC = src/tonarchy.c
+LATEST_ISO = $(shell ls -t out/*.iso 2>/dev/null | head -1)
+TEST_DISK = test-disk.qcow2
 
-.PHONY: all clean install static
+.PHONY: all clean install static mkiso build-iso test test-disk clean-iso clean-vm
 
 all: $(TARGET)
 
 static: $(TARGET)-static
+
+mkiso: tonarchy-mkiso
 
 $(TARGET): $(SRC)
 	$(CC) $(CFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
@@ -18,8 +22,79 @@ $(TARGET): $(SRC)
 $(TARGET)-static: $(SRC)
 	$(CC) $(CFLAGS) $(SRC) -o $(TARGET)-static $(STATIC_LDFLAGS)
 
-clean:
-	rm -f $(TARGET) $(TARGET)-static
+tonarchy-mkiso: src/tonarchy-mkiso.c
+	$(CC) $(CFLAGS) src/tonarchy-mkiso.c -o tonarchy-mkiso
+
+build-iso: tonarchy-mkiso
+	./tonarchy-mkiso --iso-profile ./iso --out-dir ./out
+
+test:
+	@if [ -z "$(LATEST_ISO)" ]; then echo "No ISO found. Run 'make build-iso' first"; exit 1; fi
+	@if [ ! -f "$(TEST_DISK)" ]; then \
+		echo "Creating test disk..."; \
+		qemu-img create -f qcow2 "$(TEST_DISK)" 20G; \
+	fi
+	@OVMF_CODE=$$(find /usr/share/edk2 /usr/share/OVMF -name "OVMF_CODE*.fd" 2>/dev/null | grep x64 | head -1); \
+	if [ -z "$$OVMF_CODE" ]; then \
+		echo "Error: OVMF not found. Install with: sudo pacman -S edk2-ovmf"; \
+		exit 1; \
+	fi; \
+	OVMF_VARS=$$(find /usr/share/edk2 /usr/share/OVMF -name "OVMF_VARS*.fd" 2>/dev/null | grep x64 | head -1); \
+	if [ ! -f ./OVMF_VARS.fd ]; then \
+		cp "$$OVMF_VARS" ./OVMF_VARS.fd; \
+	fi; \
+	echo "Starting UEFI VM with ISO: $(LATEST_ISO)"; \
+	qemu-system-x86_64 \
+		-cpu host -enable-kvm -machine q35,accel=kvm \
+		-smp $$(nproc) \
+		-m 8192 \
+		-drive file=$(TEST_DISK),format=qcow2,if=virtio \
+		-drive if=pflash,format=raw,readonly=on,file=$$OVMF_CODE \
+		-drive if=pflash,format=raw,file=./OVMF_VARS.fd \
+		-drive file="$(LATEST_ISO)",media=cdrom,readonly=on,cache=none \
+		-boot order=d \
+		-vga virtio \
+		-display gtk \
+		-usb -device usb-tablet \
+		-netdev user,id=net0,hostfwd=tcp::2222-:22 \
+		-device virtio-net-pci,netdev=net0 \
+		-boot menu=on
+
+test-disk:
+	@if [ ! -f "$(TEST_DISK)" ]; then \
+		echo "No test disk found. Run 'make test' first to install."; \
+		exit 1; \
+	fi
+	@OVMF_CODE=$$(find /usr/share/edk2 /usr/share/OVMF -name "OVMF_CODE*.fd" 2>/dev/null | grep x64 | head -1); \
+	if [ -z "$$OVMF_CODE" ]; then \
+		echo "Error: OVMF not found. Install with: sudo pacman -S edk2-ovmf"; \
+		exit 1; \
+	fi; \
+	echo "Booting from installed disk: $(TEST_DISK)"; \
+	echo "SSH available at: ssh -p 2222 user@localhost"; \
+	qemu-system-x86_64 \
+		-cpu host -enable-kvm -machine q35,accel=kvm \
+		-smp $$(nproc) \
+		-m 8192 \
+		-drive file=$(TEST_DISK),format=qcow2,if=virtio \
+		-drive if=pflash,format=raw,readonly=on,file=$$OVMF_CODE \
+		-drive if=pflash,format=raw,file=./OVMF_VARS.fd \
+		-vga virtio \
+		-display gtk \
+		-usb -device usb-tablet \
+		-netdev user,id=net0,hostfwd=tcp::2222-:22 \
+		-device virtio-net-pci,netdev=net0 \
+		-boot menu=on
+
+clean-vm:
+	rm -f $(TEST_DISK) OVMF_VARS.fd
+
+clean-iso:
+	rm -rf out/*.iso
+	sudo rm -rf /tmp/tonarchy_iso_work
+
+clean: clean-iso clean-vm
+	rm -f $(TARGET) $(TARGET)-static tonarchy-mkiso
 
 install: $(TARGET)
 	install -Dm755 $(TARGET) /usr/local/bin/$(TARGET)

@@ -4,6 +4,7 @@
 compile_commands.json
 /tonarchy
 /tonarchy-static
+/tonarchy-mkiso
 .cache/
 
 *.iso
@@ -15,3 +16,5 @@ test-disk*
 
 result
 notes/
+
+out/
