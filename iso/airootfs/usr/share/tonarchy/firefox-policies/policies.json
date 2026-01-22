@@ -1,9 +1,0 @@
-{
-  "policies": {
-    "OverrideFirstRunPage": "",
-    "OverridePostUpdatePage": "",
-    "DisableProfileImport": true,
-    "DontCheckDefaultBrowser": true,
-    "NoDefaultBookmarks": true
-  }
-}
