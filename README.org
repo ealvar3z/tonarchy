@@ -1,8 +1,9 @@
-#+TITLE: Tonarchy
 #+AUTHOR: Tony, btw
 #+OPTIONS: toc:2 num:nil
 
 * Tonarchy
+
+[[file:assets/tonarchy.png]]
 
 A zero-dependency Arch Linux installer with a clean TUI built from scratch in C.
 
@@ -106,9 +107,10 @@ The beginner installation handles everything:
 - [X] XFCE Beginner Mode
 - [X] Oxidized Mode (OXWM)
 - [X] BIOS support
-- [ ] Niri Wayland Mode
+- [ ] MangoWC Wayland Mode
 - [ ] Encrypted disk support
 - [ ] Multi-disk configurations
+- [ ] DIY Mode
 
 * Building the ISO
 
