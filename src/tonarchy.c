@@ -19,7 +19,7 @@ enum Install_Option {
     OXIDIZED = 1
 };
 
-static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xrandr xorg-xset xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep fd ttf-iosevka-nerd ttf-jetbrains-mono-nerd";
+static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xrandr xorg-xset xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep fd ttf-iosevka-nerd ttf-jetbrains-mono-nerd pavucontrol";
 
 static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog cargo ttf-iosevka-nerd ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm lxappearance papirus-icon-theme gnome-themes-extra";
 
@@ -376,6 +376,133 @@ void show_message(const char *message) {
     sleep(2);
 }
 
+static int check_internet_connection(void) {
+    int result = system("ping -c 1 -W 2 1.1.1.1 > /dev/null 2>&1");
+    return result == 0;
+}
+
+static int list_wifi_networks(char networks[][256], char ssids[][128], int max_networks) {
+    FILE *fp = popen("nmcli -t -f SSID,SIGNAL,SECURITY device wifi list | head -20", "r");
+    if (!fp) {
+        return 0;
+    }
+
+    int count = 0;
+    char line[512];
+    while (count < max_networks && fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+
+        char ssid[128], signal[32], security[64];
+        char *token = strtok(line, ":");
+        if (token) strncpy(ssid, token, sizeof(ssid) - 1);
+        token = strtok(NULL, ":");
+        if (token) strncpy(signal, token, sizeof(signal) - 1);
+        token = strtok(NULL, ":");
+        if (token) strncpy(security, token, sizeof(security) - 1);
+
+        if (strlen(ssid) > 0 && strcmp(ssid, "--") != 0) {
+            snprintf(ssids[count], 128, "%s", ssid);
+            snprintf(networks[count], 255, "%s (%s%%) [%s]", ssid, signal,
+                     strlen(security) > 0 ? security : "Open");
+            count++;
+        }
+    }
+    pclose(fp);
+    return count;
+}
+
+static int connect_to_wifi(const char *ssid) {
+    int rows, cols;
+    get_terminal_size(&rows, &cols);
+
+    clear_screen();
+    draw_logo(cols);
+
+    int logo_start = (cols - 70) / 2;
+    printf("\033[%d;%dH\033[37mConnecting to: %s\033[0m", 10, logo_start, ssid);
+    printf("\033[%d;%dH\033[37mEnter password (leave empty if open): \033[0m", 12, logo_start);
+    fflush(stdout);
+
+    char password[256] = "";
+    struct termios old_term;
+    tcgetattr(STDIN_FILENO, &old_term);
+    struct termios new_term = old_term;
+    new_term.c_lflag &= ~ECHO;
+    new_term.c_lflag |= ICANON;
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_term);
+
+    if (fgets(password, sizeof(password), stdin) != NULL) {
+        password[strcspn(password, "\n")] = '\0';
+    }
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_term);
+
+    clear_screen();
+    draw_logo(cols);
+    printf("\033[%d;%dH\033[37mConnecting...\033[0m", 10, logo_start);
+    fflush(stdout);
+
+    char cmd[512];
+    if (strlen(password) > 0) {
+        snprintf(cmd, sizeof(cmd), "nmcli device wifi connect '%s' password '%s' > /dev/null 2>&1", ssid, password);
+    } else {
+        snprintf(cmd, sizeof(cmd), "nmcli device wifi connect '%s' > /dev/null 2>&1", ssid);
+    }
+
+    int result = system(cmd);
+    sleep(2);
+
+    if (result == 0 && check_internet_connection()) {
+        show_message("Connected successfully!");
+        return 1;
+    } else {
+        show_message("Connection failed. Please try again.");
+        return 0;
+    }
+}
+
+static int setup_wifi_if_needed(void) {
+    if (check_internet_connection()) {
+        return 1;
+    }
+
+    int rows, cols;
+    get_terminal_size(&rows, &cols);
+
+    clear_screen();
+    draw_logo(cols);
+
+    int logo_start = (cols - 70) / 2;
+    printf("\033[%d;%dH\033[37mNo internet connection detected.\033[0m", 10, logo_start);
+    printf("\033[%d;%dH\033[37mScanning for WiFi networks...\033[0m", 11, logo_start);
+    fflush(stdout);
+
+    system("nmcli radio wifi on > /dev/null 2>&1");
+    sleep(1);
+
+    char networks[32][256];
+    char ssids[32][128];
+    int network_count = list_wifi_networks(networks, ssids, 32);
+
+    if (network_count == 0) {
+        show_message("No WiFi networks found. Please check your connection.");
+        return 0;
+    }
+
+    const char *network_ptrs[32];
+    for (int i = 0; i < network_count; i++) {
+        network_ptrs[i] = networks[i];
+    }
+
+    int selected = select_from_menu(network_ptrs, network_count);
+    if (selected < 0) {
+        show_message("WiFi setup cancelled. Installation requires internet.");
+        return 0;
+    }
+
+    return connect_to_wifi(ssids[selected]);
+}
+
 static void draw_form(
         const char *username,
         const char *password,
@@ -661,7 +788,7 @@ static int get_form_input(
 static int select_disk(char *disk_name) {
     clear_screen();
 
-    FILE *fp = popen("lsblk -d -n -o NAME,SIZE,MODEL | awk '{printf \"%s (%s) %s\\n\", $1, $2, substr($0, index($0,$3))}'", "r");
+    FILE *fp = popen("lsblk -d -n -o NAME,SIZE,MODEL,TYPE | grep -E '(disk|nvme)' | grep -v -E '(loop|rom|airoot)' | awk '{printf \"%s (%s) %s\\n\", $1, $2, substr($0, index($0,$3))}'", "r");
     if (fp == NULL) {
         show_message("Failed to list disks");
         return 0;
@@ -739,10 +866,10 @@ static int partition_disk(const char *disk) {
     int logo_start = (cols - 70) / 2;
     int uefi = is_uefi_system();
 
-    char p1[64], p2[64], p3[64];
-    part_path(p1, sizeof(p1), disk, 1);
-    part_path(p2, sizeof(p2), disk, 2);
-    part_path(p3, sizeof(p3), disk, 3);
+    char part1[64], part2[64], part3[64];
+    part_path(part1, sizeof(part1), disk, 1);
+    part_path(part2, sizeof(part2), disk, 2);
+    part_path(part3, sizeof(part3), disk, 3);
 
     printf("\033[%d;%dH\033[37mPartitioning /dev/%s (%s mode)...\033[0m", 10, logo_start, disk, uefi ? "UEFI" : "BIOS");
     fflush(stdout);
@@ -796,41 +923,41 @@ static int partition_disk(const char *disk) {
     fflush(stdout);
 
     if (uefi) {
-        snprintf(cmd, sizeof(cmd), "mkfs.fat -F32 %s 2>> /tmp/tonarchy-install.log", p1);
+        snprintf(cmd, sizeof(cmd), "mkfs.fat -F32 %s 2>> /tmp/tonarchy-install.log", part1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format EFI partition: %s", p1);
+            LOG_ERROR("Failed to format EFI partition: %s", part1);
             show_message("Failed to format EFI partition");
             return 0;
         }
         LOG_INFO("Formatted EFI partition");
 
-        snprintf(cmd, sizeof(cmd), "mkswap %s 2>> /tmp/tonarchy-install.log", p2);
+        snprintf(cmd, sizeof(cmd), "mkswap %s 2>> /tmp/tonarchy-install.log", part2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format swap: %s", p2);
+            LOG_ERROR("Failed to format swap: %s", part2);
             show_message("Failed to format swap partition");
             return 0;
         }
         LOG_INFO("Formatted swap partition");
 
-        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F %s 2>> /tmp/tonarchy-install.log", p3);
+        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F %s 2>> /tmp/tonarchy-install.log", part3);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format root: %s", p3);
+            LOG_ERROR("Failed to format root: %s", part3);
             show_message("Failed to format root partition");
             return 0;
         }
         LOG_INFO("Formatted root partition");
     } else {
-        snprintf(cmd, sizeof(cmd), "mkswap %s 2>> /tmp/tonarchy-install.log", p1);
+        snprintf(cmd, sizeof(cmd), "mkswap %s 2>> /tmp/tonarchy-install.log", part1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format swap: %s", p1);
+            LOG_ERROR("Failed to format swap: %s", part1);
             show_message("Failed to format swap partition");
             return 0;
         }
         LOG_INFO("Formatted swap partition");
 
-        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F %s 2>> /tmp/tonarchy-install.log", p2);
+        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F %s 2>> /tmp/tonarchy-install.log", part2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format root: %s", p2);
+            LOG_ERROR("Failed to format root: %s", part2);
             show_message("Failed to format root partition");
             return 0;
         }
@@ -841,9 +968,9 @@ static int partition_disk(const char *disk) {
     fflush(stdout);
 
     if (uefi) {
-        snprintf(cmd, sizeof(cmd), "mount %s /mnt 2>> /tmp/tonarchy-install.log", p3);
+        snprintf(cmd, sizeof(cmd), "mount %s /mnt 2>> /tmp/tonarchy-install.log", part3);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to mount root: %s", p3);
+            LOG_ERROR("Failed to mount root: %s", part3);
             show_message("Failed to mount root partition");
             return 0;
         }
@@ -852,32 +979,32 @@ static int partition_disk(const char *disk) {
         snprintf(cmd, sizeof(cmd), "mkdir -p /mnt/boot 2>> /tmp/tonarchy-install.log");
         system(cmd);
 
-        snprintf(cmd, sizeof(cmd), "mount %s /mnt/boot 2>> /tmp/tonarchy-install.log", p1);
+        snprintf(cmd, sizeof(cmd), "mount %s /mnt/boot 2>> /tmp/tonarchy-install.log", part1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to mount EFI: %s", p1);
+            LOG_ERROR("Failed to mount EFI: %s", part1);
             show_message("Failed to mount EFI partition");
             return 0;
         }
         LOG_INFO("Mounted EFI partition");
 
-        snprintf(cmd, sizeof(cmd), "swapon %s 2>> /tmp/tonarchy-install.log", p2);
+        snprintf(cmd, sizeof(cmd), "swapon %s 2>> /tmp/tonarchy-install.log", part2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to enable swap: %s", p2);
+            LOG_ERROR("Failed to enable swap: %s", part2);
             show_message("Failed to enable swap");
             return 0;
         }
     } else {
-        snprintf(cmd, sizeof(cmd), "mount %s /mnt 2>> /tmp/tonarchy-install.log", p2);
+        snprintf(cmd, sizeof(cmd), "mount %s /mnt 2>> /tmp/tonarchy-install.log", part2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to mount root: %s", p2);
+            LOG_ERROR("Failed to mount root: %s", part2);
             show_message("Failed to mount root partition");
             return 0;
         }
         LOG_INFO("Mounted root partition");
 
-        snprintf(cmd, sizeof(cmd), "swapon %s 2>> /tmp/tonarchy-install.log", p1);
+        snprintf(cmd, sizeof(cmd), "swapon %s 2>> /tmp/tonarchy-install.log", part1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to enable swap: %s", p1);
+            LOG_ERROR("Failed to enable swap: %s", part1);
             show_message("Failed to enable swap");
             return 0;
         }
@@ -999,14 +1126,17 @@ static int configure_system_impl(
         "Failed to create user"
     );
 
+    FILE *chpasswd_pipe = popen("arch-chroot /mnt chpasswd 2>> /tmp/tonarchy-install.log", "w");
+    if (!chpasswd_pipe) {
+        show_message("Failed to open chpasswd");
+        return 0;
+    }
+    fprintf(chpasswd_pipe, "%s:%s\n", username, password);
+    fprintf(chpasswd_pipe, "root:%s\n", password);
+    int chpasswd_status = pclose(chpasswd_pipe);
     CHECK_OR_FAIL(
-        chroot_exec_fmt("echo '%s:%s' | chpasswd", username, password),
-        "Failed to set password"
-    );
-
-    CHECK_OR_FAIL(
-        chroot_exec_fmt("echo 'root:%s' | chpasswd", password),
-        "Failed to set root password"
+        chpasswd_status == 0,
+        "Failed to set passwords"
     );
 
     create_directory("/mnt/etc/sudoers.d", 0750);
@@ -1410,6 +1540,11 @@ int main(void) {
     logger_init("/tmp/tonarchy-install.log");
     LOG_INFO("Tonarchy installer started");
 
+    if (!setup_wifi_if_needed()) {
+        logger_close();
+        return 1;
+    }
+
     char username[256] = "";
     char password[256] = "";
     char confirmed_password[256] = "";
@@ -1467,18 +1602,24 @@ int main(void) {
     draw_logo(cols);
 
     int logo_start = (cols - 70) / 2;
-    printf("\033[%d;%dH\033[1;32mInstallation complete!\033[0m", 10, logo_start);
-    printf("\033[%d;%dH\033[37mPress Enter to reboot...\033[0m", 12, logo_start);
+    printf("\033[%d;%dH\033[1;32mInstallation complete!\033[0m\n", 10, logo_start);
+    printf("\033[%d;%dH\033[37mPress Enter to reboot...\033[0m\n", 12, logo_start);
     fflush(stdout);
 
-    enable_raw_mode();
     char c;
-    read(STDIN_FILENO, &c, 1);
+    enable_raw_mode();
+    while (read(STDIN_FILENO, &c, 1) == 1) {
+        if (c == '\r' || c == '\n') {
+            break;
+        }
+    }
     disable_raw_mode();
-    system("eject -m /dev/sr0 2>/dev/null");
-    system("reboot");
 
-    LOG_INFO("Tonarchy installer finished");
+    LOG_INFO("Tonarchy installer finished - scheduling reboot");
     logger_close();
-    return 0;
+
+    sync();
+    system("sleep 2 && reboot &");
+
+    exit(0);
 }
