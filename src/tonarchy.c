@@ -1,9 +1,18 @@
 #include "tonarchy.h"
 #include <string.h>
+#include <ctype.h>
 
 static FILE *log_file = NULL;
 static const char *level_strings[] = {"DEBUG", "INFO", "WARN", "ERROR"};
 static struct termios orig_termios;
+
+static void part_path(char *out, size_t size, const char *disk, int part) {
+    if (isdigit(disk[strlen(disk) - 1])) {
+        snprintf(out, size, "/dev/%sp%d", disk, part);
+    } else {
+        snprintf(out, size, "/dev/%s%d", disk, part);
+    }
+}
 
 enum Install_Option {
     BEGINNER = 0,
@@ -730,6 +739,11 @@ static int partition_disk(const char *disk) {
     int logo_start = (cols - 70) / 2;
     int uefi = is_uefi_system();
 
+    char p1[64], p2[64], p3[64];
+    part_path(p1, sizeof(p1), disk, 1);
+    part_path(p2, sizeof(p2), disk, 2);
+    part_path(p3, sizeof(p3), disk, 3);
+
     printf("\033[%d;%dH\033[37mPartitioning /dev/%s (%s mode)...\033[0m", 10, logo_start, disk, uefi ? "UEFI" : "BIOS");
     fflush(stdout);
 
@@ -782,41 +796,41 @@ static int partition_disk(const char *disk) {
     fflush(stdout);
 
     if (uefi) {
-        snprintf(cmd, sizeof(cmd), "mkfs.fat -F32 /dev/%s1 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mkfs.fat -F32 %s 2>> /tmp/tonarchy-install.log", p1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format EFI partition: /dev/%s1", disk);
+            LOG_ERROR("Failed to format EFI partition: %s", p1);
             show_message("Failed to format EFI partition");
             return 0;
         }
         LOG_INFO("Formatted EFI partition");
 
-        snprintf(cmd, sizeof(cmd), "mkswap /dev/%s2 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mkswap %s 2>> /tmp/tonarchy-install.log", p2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format swap: /dev/%s2", disk);
+            LOG_ERROR("Failed to format swap: %s", p2);
             show_message("Failed to format swap partition");
             return 0;
         }
         LOG_INFO("Formatted swap partition");
 
-        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F /dev/%s3 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F %s 2>> /tmp/tonarchy-install.log", p3);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format root: /dev/%s3", disk);
+            LOG_ERROR("Failed to format root: %s", p3);
             show_message("Failed to format root partition");
             return 0;
         }
         LOG_INFO("Formatted root partition");
     } else {
-        snprintf(cmd, sizeof(cmd), "mkswap /dev/%s1 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mkswap %s 2>> /tmp/tonarchy-install.log", p1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format swap: /dev/%s1", disk);
+            LOG_ERROR("Failed to format swap: %s", p1);
             show_message("Failed to format swap partition");
             return 0;
         }
         LOG_INFO("Formatted swap partition");
 
-        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F /dev/%s2 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mkfs.ext4 -F %s 2>> /tmp/tonarchy-install.log", p2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to format root: /dev/%s2", disk);
+            LOG_ERROR("Failed to format root: %s", p2);
             show_message("Failed to format root partition");
             return 0;
         }
@@ -827,9 +841,9 @@ static int partition_disk(const char *disk) {
     fflush(stdout);
 
     if (uefi) {
-        snprintf(cmd, sizeof(cmd), "mount /dev/%s3 /mnt 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mount %s /mnt 2>> /tmp/tonarchy-install.log", p3);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to mount root: /dev/%s3", disk);
+            LOG_ERROR("Failed to mount root: %s", p3);
             show_message("Failed to mount root partition");
             return 0;
         }
@@ -838,32 +852,32 @@ static int partition_disk(const char *disk) {
         snprintf(cmd, sizeof(cmd), "mkdir -p /mnt/boot 2>> /tmp/tonarchy-install.log");
         system(cmd);
 
-        snprintf(cmd, sizeof(cmd), "mount /dev/%s1 /mnt/boot 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mount %s /mnt/boot 2>> /tmp/tonarchy-install.log", p1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to mount EFI: /dev/%s1", disk);
+            LOG_ERROR("Failed to mount EFI: %s", p1);
             show_message("Failed to mount EFI partition");
             return 0;
         }
         LOG_INFO("Mounted EFI partition");
 
-        snprintf(cmd, sizeof(cmd), "swapon /dev/%s2 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "swapon %s 2>> /tmp/tonarchy-install.log", p2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to enable swap: /dev/%s2", disk);
+            LOG_ERROR("Failed to enable swap: %s", p2);
             show_message("Failed to enable swap");
             return 0;
         }
     } else {
-        snprintf(cmd, sizeof(cmd), "mount /dev/%s2 /mnt 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "mount %s /mnt 2>> /tmp/tonarchy-install.log", p2);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to mount root: /dev/%s2", disk);
+            LOG_ERROR("Failed to mount root: %s", p2);
             show_message("Failed to mount root partition");
             return 0;
         }
         LOG_INFO("Mounted root partition");
 
-        snprintf(cmd, sizeof(cmd), "swapon /dev/%s1 2>> /tmp/tonarchy-install.log", disk);
+        snprintf(cmd, sizeof(cmd), "swapon %s 2>> /tmp/tonarchy-install.log", p1);
         if (system(cmd) != 0) {
-            LOG_ERROR("Failed to enable swap: /dev/%s1", disk);
+            LOG_ERROR("Failed to enable swap: %s", p1);
             show_message("Failed to enable swap");
             return 0;
         }
@@ -1026,17 +1040,20 @@ static int configure_system_impl(
 
 static int get_root_uuid(const char *disk, char *uuid_out, size_t uuid_size) {
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "blkid -s UUID -o value /dev/%s3", disk);
+    char root_part[64];
+
+    part_path(root_part, sizeof(root_part), disk, 3);
+    snprintf(cmd, sizeof(cmd), "blkid -s UUID -o value %s", root_part);
 
     FILE *fp = popen(cmd, "r");
     if (!fp) {
-        LOG_ERROR("Failed to get UUID for /dev/%s3", disk);
+        LOG_ERROR("Failed to get UUID for %s", root_part);
         return 0;
     }
 
     if (fgets(uuid_out, uuid_size, fp) == NULL) {
         pclose(fp);
-        LOG_ERROR("Failed to read UUID for /dev/%s3", disk);
+        LOG_ERROR("Failed to read UUID for %s", root_part);
         return 0;
     }
 
@@ -1044,7 +1061,7 @@ static int get_root_uuid(const char *disk, char *uuid_out, size_t uuid_size) {
     pclose(fp);
 
     if (strlen(uuid_out) == 0) {
-        LOG_ERROR("Empty UUID for /dev/%s3", disk);
+        LOG_ERROR("Empty UUID for %s", root_part);
         return 0;
     }
 
