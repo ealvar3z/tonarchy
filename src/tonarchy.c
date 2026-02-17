@@ -27,7 +27,7 @@ enum Terminal_Size {
 
 static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xrandr xorg-xset xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep fd ttf-iosevka-nerd ttf-jetbrains-mono-nerd pavucontrol";
 
-static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog cargo ttf-iosevka-nerd ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm lxappearance papirus-icon-theme gnome-themes-extra";
+static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft libxinerama freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog zig ttf-iosevka-nerd ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm lxappearance papirus-icon-theme gnome-themes-extra";
 
 static int is_uefi_system(void) {
     struct stat st;
@@ -288,7 +288,7 @@ static enum Terminal_Size get_terminal_size_category(int cols) {
 static int get_logo_width(int cols) {
     enum Terminal_Size size = get_terminal_size_category(cols);
     if (size == TERM_LARGE) return 70;
-    if (size == TERM_MEDIUM) return 35;
+    if (size == TERM_MEDIUM) return 25;
     return 8;
 }
 
@@ -301,7 +301,7 @@ static int get_logo_start(int cols) {
 static int get_menu_start_row(int cols) {
     enum Terminal_Size size = get_terminal_size_category(cols);
     if (size == TERM_LARGE) return 10;
-    if (size == TERM_MEDIUM) return 6;
+    if (size == TERM_MEDIUM) return 7;
     return 4;
 }
 
@@ -321,8 +321,9 @@ static void draw_logo(int cols) {
     };
 
     const char *logo_medium[] = {
-        "▀█▀ █▀█ █▄ █ ▄▀█ █▀█ █▀▀ █ █ █ █",
-        " █  █▄█ █ ▀█ █▀█ █▀▄ █▄▄ █▀█ ▀█▀"
+        "╔╦╗╔═╗╔╗╔╔═╗╦═╗╔═╗╦ ╦╦ ╦",
+        " ║ ║ ║║║║╠═╣╠╦╝║  ╠═╣╚╦╝",
+        " ╩ ╚═╝╝╚╝╩ ╩╩╚═╚═╝╩ ╩ ╩ "
     };
 
     const char *logo_small[] = {
@@ -342,8 +343,8 @@ static void draw_logo(int cols) {
             break;
         case TERM_MEDIUM:
             logo = logo_medium;
-            logo_height = 2;
-            logo_width = 35;
+            logo_height = 3;
+            logo_width = 25;
             break;
         default:
             logo = logo_small;
@@ -1546,13 +1547,13 @@ static int configure_oxwm(const char *username) {
         return 0;
     }
 
-    if (!chroot_exec_fmt("cd %s && cargo build --release", oxwm_path)) {
+    if (!chroot_exec_fmt("cd %s && zig build -Doptimize=ReleaseSmall", oxwm_path)) {
         LOG_ERROR("Failed to build oxwm");
         show_message("Failed to build OXWM");
         return 0;
     }
 
-    if (!chroot_exec_fmt("cp %s/target/release/oxwm /usr/bin/oxwm", oxwm_path)) {
+    if (!chroot_exec_fmt("cp %s/zig-out/bin/oxwm /usr/bin/oxwm", oxwm_path)) {
         LOG_ERROR("Failed to install oxwm binary");
         show_message("Failed to install OXWM");
         return 0;
