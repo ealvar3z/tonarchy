@@ -19,6 +19,12 @@ enum Install_Option {
     OXIDIZED = 1
 };
 
+enum Terminal_Size {
+    TERM_SMALL = 0,
+    TERM_MEDIUM = 1,
+    TERM_LARGE = 2
+};
+
 static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xrandr xorg-xset xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep fd ttf-iosevka-nerd ttf-jetbrains-mono-nerd pavucontrol";
 
 static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog cargo ttf-iosevka-nerd ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm lxappearance papirus-icon-theme gnome-themes-extra";
@@ -273,13 +279,39 @@ static void get_terminal_size(int *rows, int *cols) {
     *cols = ws.ws_col;
 }
 
+static enum Terminal_Size get_terminal_size_category(int cols) {
+    if (cols < 45) return TERM_SMALL;
+    if (cols < 75) return TERM_MEDIUM;
+    return TERM_LARGE;
+}
+
+static int get_logo_width(int cols) {
+    enum Terminal_Size size = get_terminal_size_category(cols);
+    if (size == TERM_LARGE) return 70;
+    if (size == TERM_MEDIUM) return 35;
+    return 8;
+}
+
+static int get_logo_start(int cols) {
+    int width = get_logo_width(cols);
+    int start = (cols - width) / 2;
+    return (start < 1) ? 1 : start;
+}
+
+static int get_menu_start_row(int cols) {
+    enum Terminal_Size size = get_terminal_size_category(cols);
+    if (size == TERM_LARGE) return 10;
+    if (size == TERM_MEDIUM) return 6;
+    return 4;
+}
+
 static void clear_screen(void) {
     printf("\033[2J\033[H");
     fflush(stdout);
 }
 
 static void draw_logo(int cols) {
-    const char *logo[] = {
+    const char *logo_large[] = {
         "████████╗ ██████╗ ███╗   ██╗ █████╗ ██████╗  ██████╗██╗  ██╗██╗   ██╗",
         "╚══██╔══╝██╔═══██╗████╗  ██║██╔══██╗██╔══██╗██╔════╝██║  ██║╚██╗ ██╔╝",
         "   ██║   ██║   ██║██╔██╗ ██║███████║██████╔╝██║     ███████║ ╚████╔╝ ",
@@ -288,8 +320,40 @@ static void draw_logo(int cols) {
         "   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝   ╚═╝   "
     };
 
-    int logo_height = 6;
-    int logo_start = (cols - 70) / 2;
+    const char *logo_medium[] = {
+        "▀█▀ █▀█ █▄ █ ▄▀█ █▀█ █▀▀ █ █ █ █",
+        " █  █▄█ █ ▀█ █▀█ █▀▄ █▄▄ █▀█ ▀█▀"
+    };
+
+    const char *logo_small[] = {
+        "TONARCHY"
+    };
+
+    enum Terminal_Size size = get_terminal_size_category(cols);
+    const char **logo;
+    int logo_height;
+    int logo_width;
+
+    switch (size) {
+        case TERM_LARGE:
+            logo = logo_large;
+            logo_height = 6;
+            logo_width = 70;
+            break;
+        case TERM_MEDIUM:
+            logo = logo_medium;
+            logo_height = 2;
+            logo_width = 35;
+            break;
+        default:
+            logo = logo_small;
+            logo_height = 1;
+            logo_width = 8;
+            break;
+    }
+
+    int logo_start = (cols - logo_width) / 2;
+    if (logo_start < 1) logo_start = 1;
 
     printf("\033[1;32m");
     for (int i = 0; i < logo_height; i++) {
@@ -305,8 +369,8 @@ static int draw_menu(const char **items, int count, int selected) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
-    int menu_start_row = 10;
+    int logo_start = get_logo_start(cols);
+    int menu_start_row = get_menu_start_row(cols);
 
     for (int i = 0; i < count; i++) {
         printf("\033[%d;%dH", menu_start_row + i, logo_start + 2);
@@ -368,8 +432,10 @@ void show_message(const char *message) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
-    printf("\033[%d;%dH", 10, logo_start);
+    int logo_start = get_logo_start(cols);
+    int msg_row = get_menu_start_row(cols);
+
+    printf("\033[%d;%dH", msg_row, logo_start);
     printf("\033[37m%s\033[0m", message);
     fflush(stdout);
 
@@ -418,7 +484,7 @@ static int connect_to_wifi(const char *ssid) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mConnecting to: %s\033[0m", 10, logo_start, ssid);
     printf("\033[%d;%dH\033[37mEnter password (leave empty if open): \033[0m", 12, logo_start);
     fflush(stdout);
@@ -472,7 +538,7 @@ static int setup_wifi_if_needed(void) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mNo internet connection detected.\033[0m", 10, logo_start);
     printf("\033[%d;%dH\033[37mScanning for WiFi networks...\033[0m", 11, logo_start);
     fflush(stdout);
@@ -518,7 +584,7 @@ static void draw_form(
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     int form_row = 10;
 
     printf(ANSI_CURSOR_POS ANSI_WHITE "Setup your system:" ANSI_RESET, form_row, logo_start);
@@ -660,7 +726,7 @@ static int get_form_input(
     char temp_input[256];
     int rows, cols;
     get_terminal_size(&rows, &cols);
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     int form_row = 12;
 
     Form_Field fields[] = {
@@ -728,7 +794,7 @@ static int get_form_input(
         draw_form(username, password, confirmed_password, hostname, keyboard, timezone, 6);
 
         get_terminal_size(&rows, &cols);
-        logo_start = (cols - 70) / 2;
+        logo_start = get_logo_start(cols);
 
         printf(ANSI_CURSOR_POS ANSI_YELLOW "Press Enter to continue, or field number to edit (0-5)" ANSI_RESET, 20, logo_start);
         fflush(stdout);
@@ -827,7 +893,7 @@ static int select_disk(char *disk_name) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mWARNING: All data on \033[31m/dev/%s\033[37m will be destroyed!\033[0m", 10, logo_start, disk_name);
     printf("\033[%d;%dH\033[37mType 'yes' to confirm: \033[0m", 12, logo_start);
     fflush(stdout);
@@ -863,7 +929,7 @@ static int partition_disk(const char *disk) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     int uefi = is_uefi_system();
 
     char part1[64], part2[64], part3[64];
@@ -1023,7 +1089,7 @@ static int install_packages_impl(const char *package_list) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mInstalling system packages...\033[0m", 10, logo_start);
     printf("\033[%d;%dH\033[37mThis will take several minutes.\033[0m", 11, logo_start);
     fflush(stdout);
@@ -1062,7 +1128,7 @@ static int configure_system_impl(
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mConfiguring system...\033[0m", 10, logo_start);
     printf("\033[%d;%dH\033[90m(Logging to /tmp/tonarchy-install.log)\033[0m", 11, logo_start);
     fflush(stdout);
@@ -1207,7 +1273,7 @@ static int install_bootloader(const char *disk) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     int uefi = is_uefi_system();
 
     printf("\033[%d;%dH\033[37mInstalling bootloader (%s)...\033[0m", 10, logo_start, uefi ? "systemd-boot" : "GRUB");
@@ -1424,7 +1490,7 @@ static int configure_xfce(const char *username) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mConfiguring XFCE...\033[0m", 10, logo_start);
     fflush(stdout);
 
@@ -1464,7 +1530,7 @@ static int configure_oxwm(const char *username) {
     clear_screen();
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[37mConfiguring OXWM...\033[0m", 10, logo_start);
     printf("\033[%d;%dH\033[37mCloning and building from source...\033[0m", 11, logo_start);
     fflush(stdout);
@@ -1601,7 +1667,7 @@ int main(void) {
     get_terminal_size(&rows, &cols);
     draw_logo(cols);
 
-    int logo_start = (cols - 70) / 2;
+    int logo_start = get_logo_start(cols);
     printf("\033[%d;%dH\033[1;32mInstallation complete!\033[0m\n", 10, logo_start);
     printf("\033[%d;%dH\033[37mPress Enter to reboot...\033[0m\n", 12, logo_start);
     fflush(stdout);
