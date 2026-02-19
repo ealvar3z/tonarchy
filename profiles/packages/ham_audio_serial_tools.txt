@@ -1,0 +1,5 @@
+alsa-utils
+pavucontrol
+minicom
+screen
+usbutils

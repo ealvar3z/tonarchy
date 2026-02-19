@@ -1,0 +1,6 @@
+hamlib
+gpsd
+gpsd-clients
+rtl-sdr
+rtl_433
+sox

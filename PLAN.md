@@ -21,13 +21,13 @@ Implementation plan for ham-radio profile support and repository cleanup.
 
 ## Phase 2: Ham Package Groups
 
-- [ ] Add `profiles/packages/ham_core.txt`.
-- [ ] Add `profiles/packages/ham_digital_modes.txt`.
-- [ ] Add `profiles/packages/ham_logging.txt`.
-- [ ] Add `profiles/packages/ham_audio_serial_tools.txt`.
-- [ ] Add `profiles/packages/ham_packet_modes.txt`.
-- [ ] Add `profiles/packages/ham_sdr.txt` (exclude `hackrf` by default).
-- [ ] Optional: add `profiles/packages/ham_sdr_hackrf.txt` as opt-in hardware extras.
+- [x] Add `profiles/packages/ham_core.txt`.
+- [x] Add `profiles/packages/ham_digital_modes.txt`.
+- [x] Add `profiles/packages/ham_logging.txt`.
+- [x] Add `profiles/packages/ham_audio_serial_tools.txt`.
+- [x] Add `profiles/packages/ham_packet_modes.txt`.
+- [x] Add `profiles/packages/ham_sdr.txt` (exclude `hackrf` by default).
+- [x] Optional: add `profiles/packages/ham_sdr_hackrf.txt` as opt-in hardware extras.
 
 ## Phase 3: Ham Profile Definition (XFCE Base)
 

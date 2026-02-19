@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
   - `CHANGELOG.md` for milestone tracking.
   - `PLAN.md` for step-by-step implementation tracking.
 - Repository tracking section in `README.org` pointing to planning docs.
+- Ham-radio package groups under `profiles/packages/`:
+  - `ham_core.txt`
+  - `ham_digital_modes.txt`
+  - `ham_logging.txt`
+  - `ham_audio_serial_tools.txt`
+  - `ham_packet_modes.txt`
+  - `ham_sdr.txt` (without `hackrf` by default)
+  - `ham_sdr_hackrf.txt` (optional hardware extras)
+- Added `rtl_433` to `ham_core.txt` for RTL-SDR utility coverage.
+- Added optional ADS-B group `profiles/packages/ham_rtl_adsb.txt` (`dump1090`).
 
 ### Changed
 - Refactored package-manifest layout:
