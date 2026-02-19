@@ -7,6 +7,16 @@
 
 A zero-dependency Arch Linux installer with a clean TUI built from scratch in C.
 
+* Project Tracking
+
+- Changelog: =CHANGELOG.md=
+- Implementation plan: =PLAN.md=
+
+* Repository Notes
+
+- Package group manifests live in =profiles/packages/=.
+- Wallpaper assets live in =assets/wallpapers/=.
+
 *Status:* Alpha - Beginner (XFCE) and Oxidized (OXWM) modes functional, Wayland (Niri) coming soon
 
 * Philosophy
