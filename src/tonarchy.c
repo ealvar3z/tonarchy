@@ -165,6 +165,44 @@ static int resolve_profile_packages(
     return unique_count > 0;
 }
 
+static int package_list_contains(const char *package_list, const char *needle) {
+    size_t needle_len = strlen(needle);
+    const char *p = package_list;
+
+    while ((p = strstr(p, needle)) != NULL) {
+        int left_ok = (p == package_list) || (p[-1] == ' ');
+        int right_ok = (p[needle_len] == '\0') || (p[needle_len] == ' ');
+        if (left_ok && right_ok) {
+            return 1;
+        }
+        p += needle_len;
+    }
+
+    return 0;
+}
+
+static int validate_mode_profile_packages(int level, const char *resolved_packages) {
+    if (level == BEGINNER) {
+        const char *required[] = { "xfce4-session", "thunar", "firefox" };
+        for (size_t i = 0; i < sizeof(required) / sizeof(required[0]); i++) {
+            if (!package_list_contains(resolved_packages, required[i])) {
+                LOG_ERROR("Beginner profile missing required package: %s", required[i]);
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    const char *required[] = { "zig", "lua", "libx11" };
+    for (size_t i = 0; i < sizeof(required) / sizeof(required[0]); i++) {
+        if (!package_list_contains(resolved_packages, required[i])) {
+            LOG_ERROR("Oxidized profile missing required package: %s", required[i]);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int is_uefi_system(void) {
     struct stat st;
     return stat("/sys/firmware/efi", &st) == 0;
@@ -1809,6 +1847,10 @@ int main(void) {
             sizeof(resolved_packages)
         ),
         "Failed to resolve package profile"
+    );
+    CHECK_OR_FAIL(
+        validate_mode_profile_packages(level, resolved_packages),
+        "Package profile validation failed"
     );
 
     if (level == BEGINNER) {

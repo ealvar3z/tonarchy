@@ -42,7 +42,7 @@ Implementation plan for ham-radio profile support and repository cleanup.
 ## Phase 4: Installer Integration
 
 - [x] Replace hardcoded package-only mode path with package-group/profile-driven resolution.
-- [ ] Keep existing Beginner/Oxidized behavior working during transition.
+- [x] Keep existing Beginner/Oxidized behavior working during transition.
 - [ ] Add new ham XFCE install option to menu.
 - [ ] Wire selected profile to `pacstrap` package resolution.
 - [ ] Ensure post-install config for ham profile reuses XFCE setup path.

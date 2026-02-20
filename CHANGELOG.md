@@ -40,6 +40,7 @@ All notable changes to this project will be documented in this file.
 - Installer package selection refactor (`src/tonarchy.c`):
   - replaced hardcoded monolithic package strings with package-group composition
   - added profile package resolver with de-duplication for current Beginner/Oxidized modes
+  - added compatibility validation to ensure Beginner/Oxidized mode package sets include required mode-specific packages
 
 ### Planned
 - Introduce ham-radio package groups:
