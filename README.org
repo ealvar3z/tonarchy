@@ -11,6 +11,8 @@ A zero-dependency Arch Linux installer with a clean TUI built from scratch in C.
 
 - Changelog: =CHANGELOG.md=
 - Implementation plan: =PLAN.md=
+- Attribution and licensing notice: =NOTICE.md=
+- Release/source-distribution checklist: =RELEASING.md=
 
 * Repository Notes
 
@@ -153,4 +155,11 @@ make test       # Arch
 
 * License
 
-GPL
+This project is licensed under =GNU GPL v2 only=.
+
+- Full text: =LICENSE=
+- Fork attribution and modification notice: =NOTICE.md=
+
+If you distribute ISO images or binaries, you must provide the corresponding
+source code for that exact build, as required by GPLv2. See =RELEASING.md=
+for the release checklist used by this fork.

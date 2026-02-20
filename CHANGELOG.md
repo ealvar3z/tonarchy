@@ -25,6 +25,9 @@ All notable changes to this project will be documented in this file.
   - `profiles/manifests/ham_xfce.packages.txt`
   - `profiles/manifests/ham_xfce.aur-packages.txt`
   - `profiles/manifests/ham_xfce.validation.md`
+- Added release/compliance docs:
+  - `NOTICE.md` (fork attribution + GPL notice)
+  - `RELEASING.md` (binary/ISO + corresponding source checklist)
 
 ### Changed
 - Refactored package-manifest layout:
