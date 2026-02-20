@@ -48,6 +48,10 @@ All notable changes to this project will be documented in this file.
   - `ham_core`
   - `ham_audio_serial_tools`
   - `ham_sdr`
+- Installer flow now explicitly routes selected profiles through:
+  - `install_profile_packages(...)` for resolve -> validate -> `pacstrap`
+  - `configure_desktop_for_mode(...)` for mode-specific post-install setup
+  - `Electrified` mode is explicitly mapped to XFCE post-install configuration
 
 ### Planned
 - Introduce ham-radio package groups:

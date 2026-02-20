@@ -75,6 +75,10 @@ static const Package_Group PACKAGE_GROUPS[] = {
     }
 };
 
+static int install_packages_impl(const char *package_list);
+static int configure_xfce(const char *username);
+static int configure_oxwm(const char *username);
+
 static const char *find_group_packages(const char *group_name) {
     for (size_t i = 0; i < ARRAY_LEN(PACKAGE_GROUPS); i++) {
         if (strcmp(PACKAGE_GROUPS[i].name, group_name) == 0) {
@@ -229,6 +233,45 @@ static int validate_mode_profile_packages(int level, const char *resolved_packag
     }
 
     LOG_ERROR("Unknown install level: %d", level);
+    return 0;
+}
+
+static int install_profile_packages(
+        const char *profile_name,
+        int level,
+        const char **selected_groups,
+        size_t selected_group_count
+    ) {
+    char resolved_packages[MAX_CMD_SIZE];
+    CHECK_OR_FAIL(
+        resolve_profile_packages(
+            profile_name,
+            selected_groups,
+            selected_group_count,
+            resolved_packages,
+            sizeof(resolved_packages)
+        ),
+        "Failed to resolve package profile"
+    );
+
+    CHECK_OR_FAIL(
+        validate_mode_profile_packages(level, resolved_packages),
+        "Package profile validation failed"
+    );
+
+    LOG_INFO("Installing profile '%s' via pacstrap", profile_name);
+    LOG_INFO("Profile groups count: %zu", selected_group_count);
+    return install_packages_impl(resolved_packages);
+}
+
+static int configure_desktop_for_mode(int level, const char *username) {
+    if (level == OXIDIZED) {
+        return configure_oxwm(username);
+    }
+    if (level == BEGINNER || level == ELECTRIFIED) {
+        return configure_xfce(username);
+    }
+    LOG_ERROR("No desktop configuration handler for mode: %d", level);
     return 0;
 }
 
@@ -1884,32 +1927,17 @@ int main(void) {
         return 1;
     }
 
-    char resolved_packages[MAX_CMD_SIZE];
-    CHECK_OR_FAIL(
-        resolve_profile_packages(
-            profile_name,
-            selected_groups,
-            selected_group_count,
-            resolved_packages,
-            sizeof(resolved_packages)
-        ),
-        "Failed to resolve package profile"
-    );
-    CHECK_OR_FAIL(
-        validate_mode_profile_packages(level, resolved_packages),
-        "Package profile validation failed"
-    );
-
     CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
-    CHECK_OR_FAIL(install_packages_impl(resolved_packages), "Failed to install packages");
+    CHECK_OR_FAIL(
+        install_profile_packages(profile_name, level, selected_groups, selected_group_count),
+        "Failed to install profile packages"
+    );
     CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
     CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
-
-    if (level == OXIDIZED) {
-        configure_oxwm(username);
-    } else {
-        configure_xfce(username);
-    }
+    CHECK_OR_FAIL(
+        configure_desktop_for_mode(level, username),
+        "Failed to configure desktop environment"
+    );
 
     system("cp /tmp/tonarchy-install.log /mnt/var/log/tonarchy-install.log");
 
