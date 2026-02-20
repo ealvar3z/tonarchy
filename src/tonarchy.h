@@ -22,6 +22,7 @@
 
 #define CHROOT_PATH "/mnt"
 #define MAX_CMD_SIZE 4096
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
 #define ANSI_ESC           "\033["
 #define ANSI_RESET         ANSI_ESC "0m"

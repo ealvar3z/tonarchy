@@ -63,7 +63,7 @@ static const Package_Group PACKAGE_GROUPS[] = {
 };
 
 static const char *find_group_packages(const char *group_name) {
-    for (size_t i = 0; i < sizeof(PACKAGE_GROUPS) / sizeof(PACKAGE_GROUPS[0]); i++) {
+    for (size_t i = 0; i < ARRAY_LEN(PACKAGE_GROUPS); i++) {
         if (strcmp(PACKAGE_GROUPS[i].name, group_name) == 0) {
             return PACKAGE_GROUPS[i].packages;
         }
@@ -184,7 +184,7 @@ static int package_list_contains(const char *package_list, const char *needle) {
 static int validate_mode_profile_packages(int level, const char *resolved_packages) {
     if (level == BEGINNER) {
         const char *required[] = { "xfce4-session", "thunar", "firefox" };
-        for (size_t i = 0; i < sizeof(required) / sizeof(required[0]); i++) {
+        for (size_t i = 0; i < ARRAY_LEN(required); i++) {
             if (!package_list_contains(resolved_packages, required[i])) {
                 LOG_ERROR("Beginner profile missing required package: %s", required[i]);
                 return 0;
@@ -194,7 +194,7 @@ static int validate_mode_profile_packages(int level, const char *resolved_packag
     }
 
     const char *required[] = { "zig", "lua", "libx11" };
-    for (size_t i = 0; i < sizeof(required) / sizeof(required[0]); i++) {
+    for (size_t i = 0; i < ARRAY_LEN(required); i++) {
         if (!package_list_contains(resolved_packages, required[i])) {
             LOG_ERROR("Oxidized profile missing required package: %s", required[i]);
             return 0;
@@ -773,7 +773,7 @@ static void draw_form(
         {"Keyboard",         keyboard,           "us",       0},
         {"Timezone",         timezone,           NULL,       0},
     };
-    int num_fields = (int)(sizeof(fields) / sizeof(fields[0]));
+    int num_fields = (int)(ARRAY_LEN(fields));
 
     for (int i = 0; i < num_fields; i++) {
         printf(ANSI_CURSOR_POS, form_row + i, logo_start);
@@ -912,7 +912,7 @@ static int get_form_input(
         {keyboard, "us",       INPUT_FZF_KEYMAP,   0,  NULL},
         {timezone, NULL,       INPUT_FZF_TIMEZONE, 0,  "Timezone is required"},
     };
-    int num_fields = (int)(sizeof(fields) / sizeof(fields[0]));
+    int num_fields = (int)(ARRAY_LEN(fields));
 
     int current_field = 0;
     while (current_field < num_fields) {
@@ -1683,7 +1683,7 @@ static int configure_xfce(const char *username) {
         { ".bashrc", BASHRC_CONTENT, 0644 }
     };
 
-    for (size_t i = 0; i < sizeof(dotfiles) / sizeof(dotfiles[0]); i++) {
+    for (size_t i = 0; i < ARRAY_LEN(dotfiles); i++) {
         if (!create_user_dotfile(username, &dotfiles[i])) {
             LOG_ERROR("Failed to create dotfile: %s", dotfiles[i].filename);
             return 0;
@@ -1761,7 +1761,7 @@ static int configure_oxwm(const char *username) {
         { ".bashrc", BASHRC_CONTENT, 0644 }
     };
 
-    for (size_t i = 0; i < sizeof(dotfiles) / sizeof(dotfiles[0]); i++) {
+    for (size_t i = 0; i < ARRAY_LEN(dotfiles); i++) {
         if (!create_user_dotfile(username, &dotfiles[i])) {
             LOG_ERROR("Failed to create dotfile: %s", dotfiles[i].filename);
             return 0;
@@ -1830,11 +1830,11 @@ int main(void) {
     if (level == BEGINNER) {
         profile_name = "beginner_xfce";
         selected_groups = beginner_groups;
-        selected_group_count = sizeof(beginner_groups) / sizeof(beginner_groups[0]);
+        selected_group_count = ARRAY_LEN(beginner_groups);
     } else {
         profile_name = "oxidized_oxwm";
         selected_groups = oxidized_groups;
-        selected_group_count = sizeof(oxidized_groups) / sizeof(oxidized_groups[0]);
+        selected_group_count = ARRAY_LEN(oxidized_groups);
     }
 
     char resolved_packages[MAX_CMD_SIZE];
