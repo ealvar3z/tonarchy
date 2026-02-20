@@ -41,6 +41,13 @@ All notable changes to this project will be documented in this file.
   - replaced hardcoded monolithic package strings with package-group composition
   - added profile package resolver with de-duplication for current Beginner/Oxidized modes
   - added compatibility validation to ensure Beginner/Oxidized mode package sets include required mode-specific packages
+- Installer mode menu now includes `Ham XFCE`, mapped to grouped package resolution:
+  - `base`
+  - `display_xorg`
+  - `de_xfce`
+  - `ham_core`
+  - `ham_audio_serial_tools`
+  - `ham_sdr`
 
 ### Planned
 - Introduce ham-radio package groups:

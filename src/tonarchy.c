@@ -16,7 +16,8 @@ static void part_path(char *out, size_t size, const char *disk, int part) {
 
 enum Install_Option {
     BEGINNER = 0,
-    OXIDIZED = 1
+    OXIDIZED = 1,
+    HAM_XFCE = 2
 };
 
 enum Terminal_Size {
@@ -59,6 +60,18 @@ static const Package_Group PACKAGE_GROUPS[] = {
         "ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio "
         "pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm "
         "lxappearance papirus-icon-theme gnome-themes-extra"
+    },
+    {
+        "ham_core",
+        "hamlib gpsd rtl-sdr rtl_433 sox"
+    },
+    {
+        "ham_audio_serial_tools",
+        "alsa-utils pavucontrol minicom screen usbutils"
+    },
+    {
+        "ham_sdr",
+        "gnuradio gqrx soapysdr soapyrtlsdr"
     }
 };
 
@@ -193,14 +206,30 @@ static int validate_mode_profile_packages(int level, const char *resolved_packag
         return 1;
     }
 
-    const char *required[] = { "zig", "lua", "libx11" };
-    for (size_t i = 0; i < ARRAY_LEN(required); i++) {
-        if (!package_list_contains(resolved_packages, required[i])) {
-            LOG_ERROR("Oxidized profile missing required package: %s", required[i]);
-            return 0;
+    if (level == OXIDIZED) {
+        const char *required[] = { "zig", "lua", "libx11" };
+        for (size_t i = 0; i < ARRAY_LEN(required); i++) {
+            if (!package_list_contains(resolved_packages, required[i])) {
+                LOG_ERROR("Oxidized profile missing required package: %s", required[i]);
+                return 0;
+            }
         }
+        return 1;
     }
-    return 1;
+
+    if (level == HAM_XFCE) {
+        const char *required[] = { "xfce4-session", "hamlib", "rtl-sdr", "gnuradio" };
+        for (size_t i = 0; i < ARRAY_LEN(required); i++) {
+            if (!package_list_contains(resolved_packages, required[i])) {
+                LOG_ERROR("Ham XFCE profile missing required package: %s", required[i]);
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    LOG_ERROR("Unknown install level: %d", level);
+    return 0;
 }
 
 static int is_uefi_system(void) {
@@ -1799,11 +1828,12 @@ int main(void) {
     }
 
     const char *levels[] = {
-        "Beginner (XFCE desktop - perfect for starters)",
-        "Oxidized (OXWM Beta)"
+        "Beginner (XFCE Desktop)",
+        "Oxidized (OXWM Beta)",
+        "Electrified (Amateur radio + SDR workstation)"
     };
 
-    int level = select_from_menu(levels, 2);
+    int level = select_from_menu(levels, 3);
     if (level < 0) {
         LOG_INFO("Installation cancelled by user at level selection");
         logger_close();
@@ -1823,6 +1853,14 @@ int main(void) {
 
     const char *beginner_groups[] = { "base", "display_xorg", "de_xfce" };
     const char *oxidized_groups[] = { "base", "display_xorg", "de_oxwm" };
+    const char *ham_xfce_groups[] = {
+        "base",
+        "display_xorg",
+        "de_xfce",
+        "ham_core",
+        "ham_audio_serial_tools",
+        "ham_sdr"
+    };
     const char **selected_groups = NULL;
     size_t selected_group_count = 0;
     const char *profile_name = NULL;
@@ -1831,10 +1869,19 @@ int main(void) {
         profile_name = "beginner_xfce";
         selected_groups = beginner_groups;
         selected_group_count = ARRAY_LEN(beginner_groups);
-    } else {
+    } else if (level == OXIDIZED) {
         profile_name = "oxidized_oxwm";
         selected_groups = oxidized_groups;
         selected_group_count = ARRAY_LEN(oxidized_groups);
+    } else if (level == HAM_XFCE) {
+        profile_name = "ham_xfce";
+        selected_groups = ham_xfce_groups;
+        selected_group_count = ARRAY_LEN(ham_xfce_groups);
+    } else {
+        LOG_ERROR("Unknown installation level selected: %d", level);
+        show_message("Unknown installation mode");
+        logger_close();
+        return 1;
     }
 
     char resolved_packages[MAX_CMD_SIZE];
@@ -1853,18 +1900,15 @@ int main(void) {
         "Package profile validation failed"
     );
 
-    if (level == BEGINNER) {
-        CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
-        CHECK_OR_FAIL(install_packages_impl(resolved_packages), "Failed to install packages");
-        CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
-        CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
-        configure_xfce(username);
-    } else {
-        CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
-        CHECK_OR_FAIL(install_packages_impl(resolved_packages), "Failed to install packages");
-        CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
-        CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
+    CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
+    CHECK_OR_FAIL(install_packages_impl(resolved_packages), "Failed to install packages");
+    CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
+    CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
+
+    if (level == OXIDIZED) {
         configure_oxwm(username);
+    } else {
+        configure_xfce(username);
     }
 
     system("cp /tmp/tonarchy-install.log /mnt/var/log/tonarchy-install.log");
