@@ -728,6 +728,34 @@ static int list_wifi_networks(char networks[][256], char ssids[][128], int max_n
 }
 
 static int nmcli_connect_wifi(const char *ssid, const char *password) {
+    size_t ssid_len = strlen(ssid);
+    if (ssid_len == 0 || ssid_len >= 128) {
+        LOG_ERROR("Invalid SSID length for nmcli");
+        return 0;
+    }
+    for (size_t i = 0; i < ssid_len; i++) {
+        unsigned char c = (unsigned char)ssid[i];
+        if (iscntrl(c)) {
+            LOG_ERROR("SSID contains control characters");
+            return 0;
+        }
+    }
+
+    if (password) {
+        size_t pass_len = strlen(password);
+        if (pass_len >= 256) {
+            LOG_ERROR("Password too long for nmcli");
+            return 0;
+        }
+        for (size_t i = 0; i < pass_len; i++) {
+            unsigned char c = (unsigned char)password[i];
+            if (iscntrl(c)) {
+                LOG_ERROR("Password contains control characters");
+                return 0;
+            }
+        }
+    }
+
     pid_t pid = fork();
     if (pid < 0) {
         LOG_ERROR("Failed to fork for nmcli");
@@ -743,9 +771,13 @@ static int nmcli_connect_wifi(const char *ssid, const char *password) {
         }
 
         if (password && password[0] != '\0') {
-            execlp("nmcli", "nmcli", "device", "wifi", "connect", ssid, "password", password, (char *)NULL);
+            char *const argv[] = {
+                "nmcli", "device", "wifi", "connect", (char *)ssid, "password", (char *)password, NULL
+            };
+            execv("/usr/bin/nmcli", argv);
         } else {
-            execlp("nmcli", "nmcli", "device", "wifi", "connect", ssid, (char *)NULL);
+            char *const argv[] = { "nmcli", "device", "wifi", "connect", (char *)ssid, NULL };
+            execv("/usr/bin/nmcli", argv);
         }
         _exit(127);
     }
