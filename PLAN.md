@@ -13,7 +13,7 @@ Implementation plan for ham-radio profile support and repository cleanup.
 - [ ] Define target structure:
   - [x] `profiles/packages/` for package-group manifests.
   - [x] `assets/wallpapers/` for wallpaper assets only.
-  - [ ] (Optional later) `profiles/manifests/` for install profile definitions.
+  - [x] (Optional later) `profiles/manifests/` for install profile definitions.
 - [x] Move `walls/packages/*.txt` to `profiles/packages/*.txt`.
 - [x] Resolve duplicate wallpaper placement (`walls/wall1.jpg` vs `assets/wallpapers/wall1.jpg`).
 - [x] Update references in docs/build/runtime paths.
@@ -31,13 +31,13 @@ Implementation plan for ham-radio profile support and repository cleanup.
 
 ## Phase 3: Ham Profile Definition (XFCE Base)
 
-- [ ] Define initial profile composition (data-only dry run first):
-  - [ ] `base`
-  - [ ] `display_xorg`
-  - [ ] XFCE group(s)
-  - [ ] all selected `ham_*` groups
-- [ ] Generate and review deduplicated package list.
-- [ ] Review package names for Arch repos and adjust mismatches.
+- [x] Define initial profile composition (data-only dry run first):
+  - [x] `base`
+  - [x] `display_xorg`
+  - [x] XFCE group(s)
+  - [x] all selected `ham_*` groups
+- [x] Generate and review deduplicated package list.
+- [x] Review package names for Arch repos and adjust mismatches.
 
 ## Phase 4: Installer Integration
 

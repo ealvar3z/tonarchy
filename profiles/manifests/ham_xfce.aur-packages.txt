@@ -1,0 +1,12 @@
+ax25-apps
+ax25-tools
+chirp
+cqrlog
+direwolf
+fldigi
+flrig
+gpredict
+js8call
+qsstv
+wsjtx
+xastir

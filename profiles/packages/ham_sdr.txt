@@ -1,4 +1,4 @@
 gnuradio
 gqrx
 soapysdr
-soapysdr-module-rtlsdr
+soapyrtlsdr
