@@ -17,7 +17,7 @@ static void part_path(char *out, size_t size, const char *disk, int part) {
 enum Install_Option {
     BEGINNER = 0,
     OXIDIZED = 1,
-    HAM_XFCE = 2
+    ELECTRIFIED = 2
 };
 
 enum Terminal_Size {
@@ -217,11 +217,11 @@ static int validate_mode_profile_packages(int level, const char *resolved_packag
         return 1;
     }
 
-    if (level == HAM_XFCE) {
+    if (level == ELECTRIFIED) {
         const char *required[] = { "xfce4-session", "hamlib", "rtl-sdr", "gnuradio" };
         for (size_t i = 0; i < ARRAY_LEN(required); i++) {
             if (!package_list_contains(resolved_packages, required[i])) {
-                LOG_ERROR("Ham XFCE profile missing required package: %s", required[i]);
+                LOG_ERROR("Electrified profile missing required package: %s", required[i]);
                 return 0;
             }
         }
@@ -1853,7 +1853,7 @@ int main(void) {
 
     const char *beginner_groups[] = { "base", "display_xorg", "de_xfce" };
     const char *oxidized_groups[] = { "base", "display_xorg", "de_oxwm" };
-    const char *ham_xfce_groups[] = {
+    const char *electrified_groups[] = {
         "base",
         "display_xorg",
         "de_xfce",
@@ -1873,10 +1873,10 @@ int main(void) {
         profile_name = "oxidized_oxwm";
         selected_groups = oxidized_groups;
         selected_group_count = ARRAY_LEN(oxidized_groups);
-    } else if (level == HAM_XFCE) {
-        profile_name = "ham_xfce";
-        selected_groups = ham_xfce_groups;
-        selected_group_count = ARRAY_LEN(ham_xfce_groups);
+    } else if (level == ELECTRIFIED) {
+        profile_name = "electrified";
+        selected_groups = electrified_groups;
+        selected_group_count = ARRAY_LEN(electrified_groups);
     } else {
         LOG_ERROR("Unknown installation level selected: %d", level);
         show_message("Unknown installation mode");
