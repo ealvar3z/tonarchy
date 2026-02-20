@@ -25,9 +25,145 @@ enum Terminal_Size {
     TERM_LARGE = 2
 };
 
-static const char *XFCE_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xrandr xorg-xset xfce4 xfce4-goodies xfce4-session xfce4-whiskermenu-plugin thunar thunar-archive-plugin file-roller firefox alacritty vlc evince eog fastfetch rofi ripgrep fd ttf-iosevka-nerd ttf-jetbrains-mono-nerd pavucontrol";
+typedef struct {
+    const char *name;
+    const char *packages;
+} Package_Group;
 
-static const char *OXWM_PACKAGES = "base base-devel linux linux-firmware linux-headers networkmanager git vim neovim curl wget htop btop man-db man-pages openssh sudo xorg-server xorg-xinit xorg-xsetroot xorg-xrandr xorg-xset libx11 libxft libxinerama freetype2 fontconfig pkg-config lua firefox alacritty vlc evince eog zig ttf-iosevka-nerd ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm lxappearance papirus-icon-theme gnome-themes-extra";
+#define MAX_PROFILE_PACKAGES 512
+#define MAX_PACKAGE_NAME 128
+
+static const Package_Group PACKAGE_GROUPS[] = {
+    {
+        "base",
+        "base base-devel linux linux-firmware linux-headers networkmanager git "
+        "vim neovim curl wget htop btop man-db man-pages openssh sudo"
+    },
+    {
+        "display_xorg",
+        "xorg-server xorg-xinit xorg-xrandr xorg-xsetroot"
+    },
+    {
+        "de_xfce",
+        "xorg-xset exo xfce4-appfinder xfce4-notifyd xfce4-panel "
+        "xfce4-power-manager xfce4-session xfce4-settings "
+        "xfce4-whiskermenu-plugin xfdesktop xfwm4 thunar "
+        "thunar-archive-plugin file-roller firefox alacritty vlc evince eog "
+        "fastfetch rofi ripgrep fd ttf-iosevka-nerd ttf-jetbrains-mono-nerd "
+        "pavucontrol"
+    },
+    {
+        "de_oxwm",
+        "xorg-xset libx11 libxft libxinerama freetype2 fontconfig pkg-config "
+        "lua firefox alacritty vlc evince eog zig ttf-iosevka-nerd "
+        "ttf-jetbrains-mono-nerd picom xclip xwallpaper maim rofi pulseaudio "
+        "pulseaudio-alsa pavucontrol alsa-utils fastfetch ripgrep fd pcmanfm "
+        "lxappearance papirus-icon-theme gnome-themes-extra"
+    }
+};
+
+static const char *find_group_packages(const char *group_name) {
+    for (size_t i = 0; i < sizeof(PACKAGE_GROUPS) / sizeof(PACKAGE_GROUPS[0]); i++) {
+        if (strcmp(PACKAGE_GROUPS[i].name, group_name) == 0) {
+            return PACKAGE_GROUPS[i].packages;
+        }
+    }
+    return NULL;
+}
+
+static int package_exists(char existing[][MAX_PACKAGE_NAME], int count, const char *name) {
+    for (int i = 0; i < count; i++) {
+        if (strcmp(existing[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int append_group_packages(
+        const char *group_name,
+        const char *group_packages,
+        char existing[][MAX_PACKAGE_NAME],
+        int *existing_count,
+        char *out,
+        size_t out_size
+    ) {
+    char buf[MAX_CMD_SIZE];
+    strncpy(buf, group_packages, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+
+    char *saveptr = NULL;
+    char *token = strtok_r(buf, " \t\r\n", &saveptr);
+    while (token) {
+        size_t token_len = strlen(token);
+        if (token_len == 0) {
+            token = strtok_r(NULL, " \t\r\n", &saveptr);
+            continue;
+        }
+        if (token_len >= MAX_PACKAGE_NAME) {
+            LOG_ERROR("Package name too long in group '%s': %s", group_name, token);
+            return 0;
+        }
+        if (!package_exists(existing, *existing_count, token)) {
+            if (*existing_count >= MAX_PROFILE_PACKAGES) {
+                LOG_ERROR("Too many packages while resolving group '%s'", group_name);
+                return 0;
+            }
+            strcpy(existing[*existing_count], token);
+            (*existing_count)++;
+
+            size_t used = strlen(out);
+            int written = snprintf(
+                out + used,
+                out_size - used,
+                "%s%s",
+                used > 0 ? " " : "",
+                token
+            );
+            if (written < 0 || (size_t)written >= out_size - used) {
+                LOG_ERROR("Package list buffer too small while resolving '%s'", group_name);
+                return 0;
+            }
+        }
+        token = strtok_r(NULL, " \t\r\n", &saveptr);
+    }
+
+    return 1;
+}
+
+static int resolve_profile_packages(
+        const char *profile_name,
+        const char **group_names,
+        size_t group_count,
+        char *out,
+        size_t out_size
+    ) {
+    out[0] = '\0';
+
+    char unique_packages[MAX_PROFILE_PACKAGES][MAX_PACKAGE_NAME];
+    int unique_count = 0;
+
+    for (size_t i = 0; i < group_count; i++) {
+        const char *group_name = group_names[i];
+        const char *group_packages = find_group_packages(group_name);
+        if (!group_packages) {
+            LOG_ERROR("Unknown package group '%s' in profile '%s'", group_name, profile_name);
+            return 0;
+        }
+        if (!append_group_packages(
+                group_name,
+                group_packages,
+                unique_packages,
+                &unique_count,
+                out,
+                out_size)) {
+            return 0;
+        }
+    }
+
+    LOG_INFO("Resolved profile '%s' to %d packages", profile_name, unique_count);
+    return unique_count > 0;
+}
 
 static int is_uefi_system(void) {
     struct stat st;
@@ -1647,15 +1783,43 @@ int main(void) {
 
     LOG_INFO("Selected disk: %s", disk);
 
+    const char *beginner_groups[] = { "base", "display_xorg", "de_xfce" };
+    const char *oxidized_groups[] = { "base", "display_xorg", "de_oxwm" };
+    const char **selected_groups = NULL;
+    size_t selected_group_count = 0;
+    const char *profile_name = NULL;
+
+    if (level == BEGINNER) {
+        profile_name = "beginner_xfce";
+        selected_groups = beginner_groups;
+        selected_group_count = sizeof(beginner_groups) / sizeof(beginner_groups[0]);
+    } else {
+        profile_name = "oxidized_oxwm";
+        selected_groups = oxidized_groups;
+        selected_group_count = sizeof(oxidized_groups) / sizeof(oxidized_groups[0]);
+    }
+
+    char resolved_packages[MAX_CMD_SIZE];
+    CHECK_OR_FAIL(
+        resolve_profile_packages(
+            profile_name,
+            selected_groups,
+            selected_group_count,
+            resolved_packages,
+            sizeof(resolved_packages)
+        ),
+        "Failed to resolve package profile"
+    );
+
     if (level == BEGINNER) {
         CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
-        CHECK_OR_FAIL(install_packages_impl(XFCE_PACKAGES), "Failed to install packages");
+        CHECK_OR_FAIL(install_packages_impl(resolved_packages), "Failed to install packages");
         CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
         CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
         configure_xfce(username);
     } else {
         CHECK_OR_FAIL(partition_disk(disk), "Failed to partition disk");
-        CHECK_OR_FAIL(install_packages_impl(OXWM_PACKAGES), "Failed to install packages");
+        CHECK_OR_FAIL(install_packages_impl(resolved_packages), "Failed to install packages");
         CHECK_OR_FAIL(configure_system_impl(username, password, hostname, keyboard, timezone, disk, 0), "Failed to configure system");
         CHECK_OR_FAIL(install_bootloader(disk), "Failed to install bootloader");
         configure_oxwm(username);
