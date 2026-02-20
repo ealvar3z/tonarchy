@@ -1,6 +1,7 @@
 #include "tonarchy.h"
 #include <string.h>
 #include <ctype.h>
+#include <sys/wait.h>
 
 static FILE *log_file = NULL;
 static const char *level_strings[] = {"DEBUG", "INFO", "WARN", "ERROR"};
@@ -705,13 +706,15 @@ static int list_wifi_networks(char networks[][256], char ssids[][128], int max_n
     while (count < max_networks && fgets(line, sizeof(line), fp) != NULL) {
         line[strcspn(line, "\n")] = '\0';
 
-        char ssid[128], signal[32], security[64];
+        char ssid[128] = "";
+        char signal[32] = "";
+        char security[64] = "";
         char *token = strtok(line, ":");
-        if (token) strncpy(ssid, token, sizeof(ssid) - 1);
+        if (token) snprintf(ssid, sizeof(ssid), "%s", token);
         token = strtok(NULL, ":");
-        if (token) strncpy(signal, token, sizeof(signal) - 1);
+        if (token) snprintf(signal, sizeof(signal), "%s", token);
         token = strtok(NULL, ":");
-        if (token) strncpy(security, token, sizeof(security) - 1);
+        if (token) snprintf(security, sizeof(security), "%s", token);
 
         if (strlen(ssid) > 0 && strcmp(ssid, "--") != 0) {
             snprintf(ssids[count], 128, "%s", ssid);
@@ -722,6 +725,38 @@ static int list_wifi_networks(char networks[][256], char ssids[][128], int max_n
     }
     pclose(fp);
     return count;
+}
+
+static int nmcli_connect_wifi(const char *ssid, const char *password) {
+    pid_t pid = fork();
+    if (pid < 0) {
+        LOG_ERROR("Failed to fork for nmcli");
+        return 0;
+    }
+
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+
+        if (password && password[0] != '\0') {
+            execlp("nmcli", "nmcli", "device", "wifi", "connect", ssid, "password", password, (char *)NULL);
+        } else {
+            execlp("nmcli", "nmcli", "device", "wifi", "connect", ssid, (char *)NULL);
+        }
+        _exit(127);
+    }
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) {
+        LOG_ERROR("waitpid failed for nmcli");
+        return 0;
+    }
+
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
 static int connect_to_wifi(const char *ssid) {
@@ -755,17 +790,10 @@ static int connect_to_wifi(const char *ssid) {
     printf("\033[%d;%dH\033[37mConnecting...\033[0m", 10, logo_start);
     fflush(stdout);
 
-    char cmd[512];
-    if (strlen(password) > 0) {
-        snprintf(cmd, sizeof(cmd), "nmcli device wifi connect '%s' password '%s' > /dev/null 2>&1", ssid, password);
-    } else {
-        snprintf(cmd, sizeof(cmd), "nmcli device wifi connect '%s' > /dev/null 2>&1", ssid);
-    }
-
-    int result = system(cmd);
+    int result = nmcli_connect_wifi(ssid, password);
     sleep(2);
 
-    if (result == 0 && check_internet_connection()) {
+    if (result && check_internet_connection()) {
         show_message("Connected successfully!");
         return 1;
     } else {
@@ -1113,8 +1141,9 @@ static int select_disk(char *disk_name) {
 
     while (disk_count < 32 && fgets(disks[disk_count], sizeof(disks[0]), fp) != NULL) {
         disks[disk_count][strcspn(disks[disk_count], "\n")] = '\0';
-        sscanf(disks[disk_count], "%s", names[disk_count]);
-        disk_count++;
+        if (sscanf(disks[disk_count], "%63s", names[disk_count]) == 1) {
+            disk_count++;
+        }
     }
     pclose(fp);
 
